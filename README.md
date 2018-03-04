@@ -7,5 +7,5 @@ This is my clear implementation for ["**Depth from a Single Image by Harmonizing
 Note : this implementation is only for the inference code, I'm looking forward to training this model but i have some issues regarding my GPU capacity.
 
 Note : 
-If you are interested in Depth Estimation, I recommend you to have a look on ["**DepthEstimationVGG**," 
+If you are interested in Depth Estimation, I recommend you to have a look into ["**DepthEstimationVGG**," 
 ](https://github.com/MahmoudSelmy/DepthEstimationVGG/blob/master/README.md).
