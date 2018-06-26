@@ -1,8 +1,8 @@
 # DeeperDepthEstimation
 
 # Introduction 
-This is my clear implementation for ["**Depth from a Single Image by Harmonizing Overcomplete Local Network Predictions**," 
-](https://arxiv.org/abs/1605.07081) NIPS 2016.
+This is my clear implementation for ["**Deeper Depth Prediction with Fully Convolutional Residual Networks**," 
+](https://arxiv.org/pdf/1606.00373.pdf) NIPS 2016.
 
 Note : this implementation is only for the inference code, I'm looking forward to training this model but i have some issues regarding my GPU capacity.
 
