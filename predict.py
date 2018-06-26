@@ -37,7 +37,7 @@ def predict():
         input = tf.placeholder(tf.float32, [None, 228, 304, 3], name='input_batch')
         # Construct the network
         predictions = build_model(input)
-        
+
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             # Evalute the network for the given image
