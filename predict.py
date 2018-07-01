@@ -1,12 +1,13 @@
-import numpy as np
 import tensorflow as tf
-from Utills import output_groundtruth
-from PIL import Image
-import cv2
 from model import build_model
-from data_preprocessing import BatchGenerator
-#import glob
-#import moviepy.editor as mpy
+import time
+import cv2
+import numpy as np
+from PIL import Image
+from multiprocessing import Pool
+
+# import glob
+# import moviepy.editor as mpy
 
 BATCH_SIZE = 16
 TRAIN_FILE = "train.csv"
@@ -19,7 +20,7 @@ def predict():
     cv2.imwrite('left_scene.jpg', img)
     shape_org = img.shape[:2]
     print(shape_org)
-    img = cv2.resize(img, shape,interpolation=cv2.INTER_CUBIC)
+    img = cv2.resize(img, shape, interpolation=cv2.INTER_CUBIC)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img_array = img.astype(np.float32)
     inputs = np.zeros((1, 228, 304, 3), dtype='float32')
@@ -56,7 +57,7 @@ def predict():
             depth_map.save('depth.png')
 
             d = cv2.imread('depth.png', 0)
-            d = cv2.resize(d, (shape_org[1],shape_org[0]))
+            d = cv2.resize(d, (shape_org[1], shape_org[0]))
             cv2.imwrite('depth_scaled.png', d)
 
             '''
@@ -66,45 +67,70 @@ def predict():
             '''
 
 
-if __name__ == '__main__':
-    predict()
-    Z = cv2.imread('depth_scaled.png', 0)
-    Z = Z.astype(np.float32)
-    #Z = Z- np.min(Z)
-    depth_levels = np.unique(Z)
-    depth_levels = np.sort(depth_levels)
-    print(depth_levels)
-
-    f = np.median(Z)
-
-    B = 5
-    ds = (B * (Z - f)) // Z
-    ds = ds.astype(np.int8)
-
+def shift_portion(base_vertical_index, disparity_portion):
     L = cv2.imread('image5.jpg')
     L = cv2.cvtColor(L, cv2.COLOR_BGR2RGB)
     L = L.astype(np.int8)
 
-    print(L.shape)
-    R = np.zeros_like(L)
-    H, W = Z.shape
-    print(H)
-    print(W)
+    print(base_vertical_index)
+    H, W = disparity_portion.shape
+    R = np.ones((H, W, 3), dtype=np.int8)
     for i in range(H):
         for j in range(W):
-            dw = ds[i, j]
+            dw = disparity_portion[i, j]
             new_j = j + dw
             if new_j >= W:
                 new_j = W - 1
             if new_j < 0:
                 new_j = 0
-            R[i, j] = L[i, new_j]
+            R[i, j] = L[i + base_vertical_index, new_j]
+    return R
 
-    R = Image.fromarray(R, 'RGB')
-    R.save('right_scene.jpg')
 
-    #gif_name = 'scene_min'
-    #fps = 12
-    #file_list = glob.glob('*_scene.jpg')  # Get all the pngs in the current directory
-    #clip = mpy.ImageSequenceClip(file_list, fps=fps)
-    #clip.write_gif('{}.gif'.format(gif_name), fps=fps)
+def predict_multi_threaded(number_of_threads=5):
+    Z = cv2.imread('depth_scaled.png', 0)
+    Z = Z.astype(np.float32)
+    # Z = Z- np.min(Z)
+    depth_levels = np.unique(Z)
+    depth_levels = np.sort(depth_levels)
+
+    f = np.median(depth_levels)
+
+    B = 5
+    ds = (B * (Z - f)) // Z
+    ds = ds.astype(np.int8)
+
+    H, W = ds.shape
+    portion_H = H // number_of_threads
+    portions_sizes_list = np.arange(1, number_of_threads)
+    portions_sizes_list = portions_sizes_list * portion_H
+    '''
+    if H % number_of_threads != 0:
+        portions_sizes_list = np.append(portions_sizes_list,[H % number_of_threads])
+    '''
+    # print(ds.shape)
+    disparity_portions = np.split(ds, portions_sizes_list, axis=0)
+
+    zipped_disparity_portions = []
+
+    for i, p in enumerate(disparity_portions):
+        zipped_disparity_portions.append((i * portion_H, p))
+
+    # print(">>>" + str(len(zipped_disparity_portions)))
+
+    p = Pool(number_of_threads)
+    right_scene_portions = p.starmap(shift_portion, zipped_disparity_portions)
+    right_scene = right_scene_portions[0]
+
+    for portion in right_scene_portions[1:]:
+        right_scene = np.concatenate((right_scene, portion), axis=0)
+    R = Image.fromarray(right_scene, 'RGB')
+    R.save('right_scene_multi_threaded.jpg')
+
+
+if __name__ == '__main__':
+    # predict()
+    start_time = time.time()
+    predict_multi_threaded(number_of_threads=1)
+    # shift()
+    print("--- %s seconds ---" % (time.time() - start_time))
