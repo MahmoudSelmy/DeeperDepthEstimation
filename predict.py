@@ -5,6 +5,8 @@ import cv2
 import numpy as np
 from PIL import Image
 from multiprocessing import Pool
+import glob
+import moviepy.editor as mpy
 
 # import glob
 # import moviepy.editor as mpy
@@ -68,7 +70,7 @@ def predict():
 
 
 def shift_portion(base_vertical_index, disparity_portion):
-    L = cv2.imread('image5.jpg')
+    L = cv2.imread('left_scene.jpg')
     L = cv2.cvtColor(L, cv2.COLOR_BGR2RGB)
     L = L.astype(np.int8)
 
@@ -77,6 +79,7 @@ def shift_portion(base_vertical_index, disparity_portion):
     R = np.ones((H, W, 3), dtype=np.int8)
     for i in range(H):
         for j in range(W):
+            '''
             dw = disparity_portion[i, j]
             new_j = j + dw
             if new_j >= W:
@@ -84,6 +87,14 @@ def shift_portion(base_vertical_index, disparity_portion):
             if new_j < 0:
                 new_j = 0
             R[i, j] = L[i + base_vertical_index, new_j]
+            '''
+            dh = disparity_portion[i, j]
+            new_i = i + dh
+            if new_i >= H:
+                new_i = H - 1
+            if new_i < 0:
+                new_i = 0
+            R[i, j] = L[new_i, j + base_vertical_index]
     return R
 
 
@@ -94,14 +105,14 @@ def predict_multi_threaded(number_of_threads=5):
     depth_levels = np.unique(Z)
     depth_levels = np.sort(depth_levels)
 
-    f = np.median(depth_levels)
+    f = np.max(depth_levels)
 
-    B = 5
+    B = -2
     ds = (B * (Z - f)) // Z
     ds = ds.astype(np.int8)
 
     H, W = ds.shape
-    portion_H = H // number_of_threads
+    portion_H = W // number_of_threads
     portions_sizes_list = np.arange(1, number_of_threads)
     portions_sizes_list = portions_sizes_list * portion_H
     '''
@@ -109,7 +120,7 @@ def predict_multi_threaded(number_of_threads=5):
         portions_sizes_list = np.append(portions_sizes_list,[H % number_of_threads])
     '''
     # print(ds.shape)
-    disparity_portions = np.split(ds, portions_sizes_list, axis=0)
+    disparity_portions = np.split(ds, portions_sizes_list, axis=1)
 
     zipped_disparity_portions = []
 
@@ -125,12 +136,32 @@ def predict_multi_threaded(number_of_threads=5):
     for portion in right_scene_portions[1:]:
         right_scene = np.concatenate((right_scene, portion), axis=0)
     R = Image.fromarray(right_scene, 'RGB')
-    R.save('right_scene_multi_threaded.jpg')
+    R.save('right_scene.jpg')
+    gif_name = 'scene_min'
+    fps = 12
+    images_names = ['right_scene_multi_threaded.jpg', 'image5.jpg']
+
+    file_list = glob.glob('*_scene.jpg')
+    clip = mpy.ImageSequenceClip(file_list, fps=fps)
+    clip.write_gif('{}.gif'.format(gif_name), fps=fps)
+
+
+def create_gif_from_scenes(num_scenes=8):
+    scenes_names = []
+    base_name = './shifts/'
+    for i in range(num_scenes):
+        scenes_names.append(base_name + str(i) + '_scenes.jpg')
+    fps = 12
+    #images_names = ['right_scene_multi_threaded.jpg', 'image5.jpg']
+    gif_name = 'scene_min'
+    file_list = glob.glob('./shift/*_scene.jpg')
+    clip = mpy.ImageSequenceClip(file_list, fps=fps)
+    clip.write_gif('{}.gif'.format(gif_name), fps=fps)
 
 
 if __name__ == '__main__':
     # predict()
     start_time = time.time()
-    predict_multi_threaded(number_of_threads=1)
+    predict_multi_threaded(number_of_threads=8)
     # shift()
     print("--- %s seconds ---" % (time.time() - start_time))
